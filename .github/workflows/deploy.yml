@@ -1,0 +1,90 @@
+# Builds the React app and deploys it to the EC2 server.
+# Runs every time code in react-app/ is pushed to the main branch.
+#
+# How it works (no SSH, no hard-coded IP):
+#   1. Build the React app
+#   2. Upload the build to S3
+#   3. Find the EC2 server by its Name tag
+#   4. Tell the server (through AWS SSM) to copy the files from S3 into nginx
+
+name: Deploy React App to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "react-app/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: # Lets you run it manually from the "Actions" tab
+
+# Needed so GitHub can log in to AWS with OIDC (no access keys)
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  PROJECT_NAME: react-app # Must match project_name in terraform/variables.tf
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download the code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: react-app/package-lock.json
+
+      # 3. Install packages, run tests, build the app into react-app/build
+      - name: Install, test and build
+        working-directory: react-app
+        run: |
+          npm ci
+          npm test -- --watchAll=false
+          npm run build
+
+      # 4. Log in to AWS using the role Terraform created
+      - name: Log in to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 5. Upload the build files to S3
+      - name: Upload build to S3
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="$PROJECT_NAME-deploy-$ACCOUNT_ID"
+          echo "BUCKET=$BUCKET" >> $GITHUB_ENV
+          aws s3 sync react-app/build "s3://$BUCKET" --delete
+
+      # 6. Find the running server by its Name tag
+      - name: Find EC2 server
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$PROJECT_NAME-server" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" --output text)
+          echo "Found server: $INSTANCE_ID"
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
+      # 7. Tell the server to copy the files from S3 into nginx's folder
+      - name: Deploy on server
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy React app" \
+            --parameters "commands=[\"/snap/bin/aws s3 sync s3://$BUCKET /var/www/html --delete\"]" \
+            --query "Command.CommandId" --output text)
+
+          # Wait until the command finishes (fails the job if it fails)
+          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
+          echo "Deployed successfully!"

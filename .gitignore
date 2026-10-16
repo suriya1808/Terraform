@@ -27,7 +27,8 @@ yarn-error.log*
 *.tfstate.*
 *.tfvars
 *.tfvars.json
-!example.tfvars
+# Non-secret per-environment config is committed on purpose.
+!infra/**/terraform.tfvars
 crash.log
 crash.*.log
 override.tf
@@ -37,6 +38,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 *.tfplan
+tfplan
+plan.txt
 
 # Editor / IDE
 .vscode/
@@ -47,3 +50,6 @@ terraform.rc
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# SSH private keys
+*.pem
