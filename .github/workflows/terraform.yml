@@ -1,19 +1,27 @@
-# STAGE 1: Create/update the AWS infrastructure with Terraform.
+# INFRA PIPELINE: Create/update the AWS infrastructure with Terraform.
 #
-# Started by pipeline.yml (or by hand from the "Actions" tab).
-# If nothing changed in terraform/, the plan shows "No changes"
-# and nothing happens in AWS.
+# Starts when code in terraform/ is pushed to any branch
+# (or by hand from the "Actions" tab).
 
-name: Terraform
+name: Infra Pipeline (Terraform)
 
 on:
-  workflow_call: # Called by pipeline.yml
+  push:
+    branches: ["**"] # "**" = every branch
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
   workflow_dispatch: # Lets you run it manually from the "Actions" tab
 
 # Needed so GitHub can log in to AWS with OIDC (no access keys)
 permissions:
   id-token: write
   contents: read
+
+# Never run two Terraform pipelines at the same time
+concurrency:
+  group: terraform
+  cancel-in-progress: false
 
 env:
   AWS_REGION: eu-west-1

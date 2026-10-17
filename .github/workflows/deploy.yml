@@ -1,7 +1,8 @@
-# STAGE 2: Build the React app and deploy it to the EC2 server.
+# APP PIPELINE: Build the React app and deploy it to the EC2 server.
 #
-# Started by pipeline.yml after Terraform finishes
-# (or by hand from the "Actions" tab).
+# Starts when code in react-app/ is pushed to any branch
+# (or by hand from the "Actions" tab - e.g. after Terraform
+# created a new server).
 #
 # How it works (no SSH, no hard-coded IP):
 #   1. Build the React app
@@ -9,11 +10,20 @@
 #   3. Find the EC2 server by its Name tag, and wait until it is ready
 #   4. Tell the server (through AWS SSM) to copy the files from S3 into nginx
 
-name: Deploy React App to EC2
+name: App Pipeline (Deploy React App)
 
 on:
-  workflow_call: # Called by pipeline.yml
+  push:
+    branches: ["**"] # "**" = every branch
+    paths:
+      - "react-app/**"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch: # Lets you run it manually from the "Actions" tab
+
+# Never run two deploys at the same time
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 # Needed so GitHub can log in to AWS with OIDC (no access keys)
 permissions:
