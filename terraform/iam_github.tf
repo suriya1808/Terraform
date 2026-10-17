@@ -1,16 +1,16 @@
 # ---------------------------------------------------------
-# Permissions for GitHub Actions
+# Permissions for the app deploy pipeline (deploy.yml)
 # GitHub logs in to AWS with OIDC (short-lived tokens),
 # so no AWS access keys are stored in GitHub.
 # ---------------------------------------------------------
 
-# Tell AWS to trust GitHub's login service
-resource "aws_iam_openid_connect_provider" "github" {
-  url            = "https://token.actions.githubusercontent.com"
-  client_id_list = ["sts.amazonaws.com"]
+# GitHub's login service (OIDC) is created in the bootstrap/ folder.
+# This is its address in AWS.
+locals {
+  github_oidc_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
 }
 
-# A role that GitHub Actions can use
+# A role that the deploy pipeline can use
 resource "aws_iam_role" "github" {
   name = "${var.project_name}-github-deploy-role"
 
@@ -19,7 +19,7 @@ resource "aws_iam_role" "github" {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Principal = { Federated = local.github_oidc_arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
@@ -64,9 +64,9 @@ resource "aws_iam_role_policy" "github_deploy" {
         ]
       },
       {
-        # Check whether the command finished
+        # Check whether the server is ready, and whether the command finished
         Effect   = "Allow"
-        Action   = "ssm:GetCommandInvocation"
+        Action   = ["ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation"]
         Resource = "*"
       }
     ]

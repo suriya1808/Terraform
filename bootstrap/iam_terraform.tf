@@ -1,8 +1,6 @@
 # ---------------------------------------------------------
-# Permissions for the Terraform pipeline (terraform.yml)
+# The role the Terraform pipeline (terraform.yml) logs in with
 # ---------------------------------------------------------
-
-# A role that the Terraform pipeline can use
 resource "aws_iam_role" "terraform_apply" {
   name = "${var.project_name}-terraform-apply-role"
 
@@ -11,7 +9,7 @@ resource "aws_iam_role" "terraform_apply" {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn } # From oidc.tf
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {

@@ -1,25 +1,19 @@
-# Runs Terraform every time code in terraform/ is pushed to any branch.
-# It shows the plan and then applies the changes to AWS.
+# STAGE 1: Create/update the AWS infrastructure with Terraform.
+#
+# Started by pipeline.yml (or by hand from the "Actions" tab).
+# If nothing changed in terraform/, the plan shows "No changes"
+# and nothing happens in AWS.
 
 name: Terraform
 
 on:
-  push:
-    branches: ["**"] # "**" = every branch
-    paths:
-      - "terraform/**"
-      - ".github/workflows/terraform.yml"
+  workflow_call: # Called by pipeline.yml
   workflow_dispatch: # Lets you run it manually from the "Actions" tab
 
 # Needed so GitHub can log in to AWS with OIDC (no access keys)
 permissions:
   id-token: write
   contents: read
-
-# Never run two Terraform pipelines at the same time
-concurrency:
-  group: terraform
-  cancel-in-progress: false
 
 env:
   AWS_REGION: eu-west-1
@@ -44,7 +38,7 @@ jobs:
         with:
           terraform_version: 1.15.9
 
-      # 3. Log in to AWS using the role Terraform created
+      # 3. Log in to AWS using the role from the bootstrap/ folder
       - name: Log in to AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
