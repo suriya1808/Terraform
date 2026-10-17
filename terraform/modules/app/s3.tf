@@ -8,8 +8,11 @@ data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "deploy" {
   # Example: react-app-deploy-123456789012
-  bucket = "${var.project_name}-deploy-${data.aws_caller_identity.current.account_id}"
+  bucket = "${local.name}-deploy-${data.aws_caller_identity.current.account_id}"
 
   # Allow "terraform destroy" to delete the bucket even if it has files
   force_destroy = true
 }
+
+
+#cicd test 2

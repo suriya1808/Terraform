@@ -8,9 +8,7 @@ terraform {
   }
 }
 
-# Connect to AWS.
-# Your access key and secret key are NOT written here.
-# Terraform reads them from environment variables or "aws configure".
+# Connect to AWS (uses your laptop's AWS login)
 provider "aws" {
   region = var.aws_region
 }

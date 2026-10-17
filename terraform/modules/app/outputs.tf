@@ -1,4 +1,4 @@
-# Useful information printed after "terraform apply"
+# Information this module gives back to the environment folder
 
 output "website_url" {
   description = "Open this in your browser"
@@ -6,6 +6,6 @@ output "website_url" {
 }
 
 output "github_role_arn" {
-  description = "Add this to GitHub as the AWS_ROLE_ARN variable"
+  description = "Add this to the GitHub environment as the AWS_ROLE_ARN variable"
   value       = aws_iam_role.github.arn
 }
