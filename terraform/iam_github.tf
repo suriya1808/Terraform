@@ -14,7 +14,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 resource "aws_iam_role" "github" {
   name = "${var.project_name}-github-deploy-role"
 
-  # Who can use this role? -> Only YOUR repo, only from the main branch
+  # Who can use this role? -> Only YOUR repo, from any branch
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -24,7 +24,10 @@ resource "aws_iam_role" "github" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
+        }
+        # "*" = any branch name
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/*"
         }
       }
     }]

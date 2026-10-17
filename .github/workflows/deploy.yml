@@ -1,5 +1,5 @@
 # Builds the React app and deploys it to the EC2 server.
-# Runs every time code in react-app/ is pushed to the main branch.
+# Runs every time code in react-app/ is pushed to any branch.
 #
 # How it works (no SSH, no hard-coded IP):
 #   1. Build the React app
@@ -11,7 +11,7 @@ name: Deploy React App to EC2
 
 on:
   push:
-    branches: [main]
+    branches: ["**"] # "**" = every branch
     paths:
       - "react-app/**"
       - ".github/workflows/deploy.yml"
