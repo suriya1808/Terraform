@@ -1,0 +1,72 @@
+# Runs Terraform every time code in terraform/ is pushed to any branch.
+# It shows the plan and then applies the changes to AWS.
+
+name: Terraform
+
+on:
+  push:
+    branches: ["**"] # "**" = every branch
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch: # Lets you run it manually from the "Actions" tab
+
+# Needed so GitHub can log in to AWS with OIDC (no access keys)
+permissions:
+  id-token: write
+  contents: read
+
+# Never run two Terraform pipelines at the same time
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    # All "run" commands below happen inside the terraform folder
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      # 1. Download the code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install Terraform (same version as on your laptop)
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+
+      # 3. Log in to AWS using the role Terraform created
+      - name: Log in to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 4. Check the code is formatted (fix locally with: terraform fmt)
+      - name: Terraform format check
+        run: terraform fmt -check
+
+      # 5. Download providers and connect to the state file in S3
+      - name: Terraform init
+        run: terraform init -input=false
+
+      # 6. Check the code has no errors
+      - name: Terraform validate
+        run: terraform validate
+
+      # 7. Show what will change, and save it to a file
+      - name: Terraform plan
+        run: terraform plan -input=false -out=tfplan
+
+      # 8. Apply exactly that saved plan to AWS
+      - name: Terraform apply
+        run: terraform apply -input=false tfplan
