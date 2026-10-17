@@ -9,8 +9,7 @@ on:
   push:
     branches: ["**"] # "**" = every branch
     paths:
-      - "terraform/**"
-      - ".github/workflows/terraform.yml"
+      - "terraform/**" # Only Terraform code changes start this pipeline
   workflow_dispatch: # Lets you run it manually from the "Actions" tab
 
 # Needed so GitHub can log in to AWS with OIDC (no access keys)

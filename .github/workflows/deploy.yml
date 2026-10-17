@@ -16,8 +16,7 @@ on:
   push:
     branches: ["**"] # "**" = every branch
     paths:
-      - "react-app/**"
-      - ".github/workflows/deploy.yml"
+      - "react-app/**" # Only app code changes start this pipeline
   workflow_dispatch: # Lets you run it manually from the "Actions" tab
 
 # Never run two deploys at the same time
@@ -29,6 +28,7 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  actions: read # Lets us check if the Infra Pipeline is still running
 
 env:
   AWS_REGION: eu-west-1
@@ -58,6 +58,26 @@ jobs:
           npm ci
           npm test -- --watchAll=false
           npm run build
+
+      # If the Infra Pipeline is running on this branch (e.g. creating the server),
+      # wait for it to finish before deploying.
+      - name: Wait for Infra Pipeline to finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          while true; do
+            RUNNING=$(gh run list --repo "${{ github.repository }}" --workflow terraform.yml \
+              --branch "${{ github.ref_name }}" --json status \
+              --jq '[.[] | select(.status != "completed")] | length')
+
+            if [ "$RUNNING" = "0" ]; then
+              echo "Infra Pipeline is not running. Continuing."
+              break
+            fi
+
+            echo "Infra Pipeline is still running. Waiting..."
+            sleep 15
+          done
 
       # 4. Log in to AWS using the role Terraform created
       - name: Log in to AWS
