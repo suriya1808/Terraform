@@ -13,3 +13,6 @@ resource "aws_s3_bucket" "deploy" {
   # Allow "terraform destroy" to delete the bucket even if it has files
   force_destroy = true
 }
+
+
+#cicd test
