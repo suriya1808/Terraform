@@ -19,7 +19,9 @@ variable "project_name" {
 }
 
 variable "github_repo" {
-  description = "GitHub repository allowed to deploy (owner/repo)"
+  description = "GitHub repository allowed to deploy"
   type        = string
-  default     = "suriya1808/Terraform"
+  # Format GitHub uses in its login token: owner@ownerID/repo@repoID
+  # The IDs never change, even if the repo is renamed.
+  default = "suriya1808@81013423/Terraform@1422403913"
 }
