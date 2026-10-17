@@ -1,27 +1,33 @@
-# APP PIPELINE: Build the React app and deploy it to the EC2 server.
+# APP PIPELINE: Build the React app and deploy it to an environment.
 #
-# Starts when code in react-app/ is pushed to any branch
-# (or by hand from the "Actions" tab - e.g. after Terraform
-# created a new server).
+#   Push to react-app/ (any branch) -> deploys to DEV automatically
+#   Run by hand from the "Actions" tab -> you choose dev, qa or prod
 #
 # How it works (no SSH, no hard-coded IP):
 #   1. Build the React app
-#   2. Upload the build to S3
-#   3. Find the EC2 server by its Name tag, and wait until it is ready
+#   2. Upload the build to the environment's S3 bucket
+#   3. Find the environment's EC2 server by its Name tag, and wait until it is ready
 #   4. Tell the server (through AWS SSM) to copy the files from S3 into nginx
 
 name: App Pipeline (Deploy React App)
+run-name: Deploy -> ${{ inputs.environment || 'dev' }}
 
 on:
   push:
     branches: ["**"] # "**" = every branch
     paths:
       - "react-app/**" # Only app code changes start this pipeline
-  workflow_dispatch: # Lets you run it manually from the "Actions" tab
+  workflow_dispatch: # Run by hand, and choose the environment
+    inputs:
+      environment:
+        description: "Deploy to which environment?"
+        type: choice
+        options: [dev, qa, prod]
+        default: dev
 
-# Never run two deploys at the same time
+# Never run two deploys to the same environment at the same time
 concurrency:
-  group: deploy
+  group: deploy-${{ inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 # Needed so GitHub can log in to AWS with OIDC (no access keys)
@@ -32,11 +38,17 @@ permissions:
 
 env:
   AWS_REGION: eu-west-1
-  PROJECT_NAME: react-app # Must match project_name in terraform/variables.tf
+  ENVIRONMENT: ${{ inputs.environment || 'dev' }} # On a push, "inputs" is empty, so it is "dev"
+  NAME: react-app-${{ inputs.environment || 'dev' }} # Same names Terraform uses, e.g. react-app-dev
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    # The chosen environment. GitHub gives this job that environment's
+    # AWS_ROLE_ARN variable. For prod you can require an approval
+    # in GitHub (Settings -> Environments).
+    environment: ${{ inputs.environment || 'dev' }}
 
     steps:
       # 1. Download the code from GitHub
@@ -79,7 +91,7 @@ jobs:
             sleep 15
           done
 
-      # 4. Log in to AWS using the role Terraform created
+      # 4. Log in to AWS using this environment's deploy role (created by Terraform)
       - name: Log in to AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -90,24 +102,25 @@ jobs:
       - name: Upload build to S3
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          BUCKET="$PROJECT_NAME-deploy-$ACCOUNT_ID"
+          BUCKET="$NAME-deploy-$ACCOUNT_ID"
           echo "BUCKET=$BUCKET" >> $GITHUB_ENV
           aws s3 sync react-app/build "s3://$BUCKET" --delete
 
-      # 6. Find the running server by its Name tag
+      # 6. Find this environment's running server by its Name tag
       - name: Find EC2 server
         run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=$PROJECT_NAME-server" "Name=instance-state-name,Values=running" \
-            --query "Reservations[0].Instances[0].InstanceId" --output text)
+          read INSTANCE_ID PUBLIC_IP <<< $(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$NAME-server" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].[InstanceId,PublicIpAddress]" --output text)
 
           if [ "$INSTANCE_ID" = "None" ]; then
-            echo "No running server found. Run the Terraform pipeline first."
+            echo "No running server found for '$ENVIRONMENT'. Run the Infra Pipeline for '$ENVIRONMENT' first."
             exit 1
           fi
 
           echo "Found server: $INSTANCE_ID"
           echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+          echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
 
       # 7. A brand-new server needs a minute or two to boot.
       #    Wait until it is connected to AWS SSM (checks every 10s, up to 5 min).
@@ -149,7 +162,7 @@ jobs:
 
             case "$STATUS" in
               Success)
-                echo "Deployed successfully!"
+                echo "Deployed successfully to '$ENVIRONMENT': http://$PUBLIC_IP"
                 exit 0 ;;
               Failed|Cancelled|TimedOut)
                 echo "Deploy failed on the server: $STATUS"

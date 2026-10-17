@@ -4,7 +4,7 @@
 
 # A role the EC2 server can use
 resource "aws_iam_role" "ec2" {
-  name = "${var.project_name}-ec2-role"
+  name = "${local.name}-ec2-role"
 
   # Who can use this role? -> EC2 servers
   assume_role_policy = jsonencode({
@@ -40,6 +40,6 @@ resource "aws_iam_role_policy" "ec2_s3_read" {
 
 # The "instance profile" is how a role gets attached to an EC2 server
 resource "aws_iam_instance_profile" "ec2" {
-  name = "${var.project_name}-ec2-profile"
+  name = "${local.name}-ec2-profile"
   role = aws_iam_role.ec2.name
 }

@@ -4,7 +4,9 @@
 resource "aws_iam_role" "terraform_apply" {
   name = "${var.project_name}-terraform-apply-role"
 
-  # Who can use this role? -> Only YOUR repo, from any branch
+  # Who can use this role? -> Only YOUR repo:
+  #   - a job on any branch                          (sub = ...:ref:refs/heads/<branch>)
+  #   - a job running in a GitHub environment (dev/qa/prod) (sub = ...:environment:<name>)
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -15,9 +17,12 @@ resource "aws_iam_role" "terraform_apply" {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
-        # "*" = any branch name
+        # "*" = any name
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/*"
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_repo}:ref:refs/heads/*",
+            "repo:${var.github_repo}:environment:*"
+          ]
         }
       }
     }]

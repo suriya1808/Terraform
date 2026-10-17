@@ -3,7 +3,7 @@
 # Only port 80 (website) is open. No SSH (port 22).
 # ---------------------------------------------------------
 resource "aws_security_group" "web" {
-  name        = "${var.project_name}-sg"
+  name        = "${local.name}-sg"
   description = "Allow HTTP only"
 
   # Allow website traffic (HTTP)
@@ -25,6 +25,6 @@ resource "aws_security_group" "web" {
   }
 
   tags = {
-    Name = "${var.project_name}-sg"
+    Name = "${local.name}-sg"
   }
 }

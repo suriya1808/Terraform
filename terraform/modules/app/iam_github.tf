@@ -12,9 +12,11 @@ locals {
 
 # A role that the deploy pipeline can use
 resource "aws_iam_role" "github" {
-  name = "${var.project_name}-github-deploy-role"
+  name = "${local.name}-github-deploy-role"
 
-  # Who can use this role? -> Only YOUR repo, from any branch
+  # Who can use this role? -> Only YOUR repo, and only a pipeline job
+  # running in the matching GitHub environment (dev, qa or prod).
+  # So a "dev" deploy can never touch the "prod" server.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -24,10 +26,7 @@ resource "aws_iam_role" "github" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        # "*" = any branch name
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/*"
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:environment:${var.environment}"
         }
       }
     }]

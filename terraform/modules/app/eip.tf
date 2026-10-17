@@ -7,6 +7,6 @@ resource "aws_eip" "web" {
   domain   = "vpc"
 
   tags = {
-    Name = "${var.project_name}-eip"
+    Name = "${local.name}-eip"
   }
 }

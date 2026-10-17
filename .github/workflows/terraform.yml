@@ -1,25 +1,34 @@
 # INFRA PIPELINE: Create/update the AWS infrastructure with Terraform.
 #
-# Starts when code in terraform/ is pushed to any branch
-# (or by hand from the "Actions" tab).
+#   Push to terraform/ (any branch) -> updates DEV automatically
+#   Run by hand from the "Actions" tab -> you choose dev, qa or prod
+#
+# Each environment uses its own folder: terraform/environments/<env>
 
 name: Infra Pipeline (Terraform)
+run-name: Terraform -> ${{ inputs.environment || 'dev' }}
 
 on:
   push:
     branches: ["**"] # "**" = every branch
     paths:
       - "terraform/**" # Only Terraform code changes start this pipeline
-  workflow_dispatch: # Lets you run it manually from the "Actions" tab
+  workflow_dispatch: # Run by hand, and choose the environment
+    inputs:
+      environment:
+        description: "Which environment?"
+        type: choice
+        options: [dev, qa, prod]
+        default: dev
 
 # Needed so GitHub can log in to AWS with OIDC (no access keys)
 permissions:
   id-token: write
   contents: read
 
-# Never run two Terraform pipelines at the same time
+# Never run two Terraform pipelines on the same environment at the same time
 concurrency:
-  group: terraform
+  group: terraform-${{ inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 env:
@@ -29,10 +38,14 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
 
-    # All "run" commands below happen inside the terraform folder
+    # The chosen environment (on a push, "inputs" is empty, so it is "dev").
+    # For prod you can require an approval in GitHub (Settings -> Environments).
+    environment: ${{ inputs.environment || 'dev' }}
+
+    # All "run" commands below happen inside the chosen environment's folder
     defaults:
       run:
-        working-directory: terraform
+        working-directory: terraform/environments/${{ inputs.environment || 'dev' }}
 
     steps:
       # 1. Download the code from GitHub
@@ -52,11 +65,12 @@ jobs:
           role-to-assume: ${{ vars.TF_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 4. Check the code is formatted (fix locally with: terraform fmt)
+      # 4. Check ALL Terraform code is formatted (fix locally with: terraform fmt -recursive)
       - name: Terraform format check
-        run: terraform fmt -check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
 
-      # 5. Download providers and connect to the state file in S3
+      # 5. Download providers and connect to this environment's state file in S3
       - name: Terraform init
         run: terraform init -input=false
 

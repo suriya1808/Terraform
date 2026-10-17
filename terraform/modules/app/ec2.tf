@@ -16,6 +16,6 @@ resource "aws_instance" "web" {
 
   # GitHub Actions finds the server using this Name tag
   tags = {
-    Name = "${var.project_name}-server"
+    Name = "${local.name}-server"
   }
 }
